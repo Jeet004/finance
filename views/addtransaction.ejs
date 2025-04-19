@@ -1,0 +1,33 @@
+
+<div class="container mt-5">
+    <h1 class="text-center">Add Transaction</h1>
+    <form action="/add" method="POST" class="mt-4">
+        <div class="mb-3">
+            <label for="type" class="form-label">Transaction Type</label>
+            <select class="form-select" id="type" name="type" required>
+                <option value="income">Income</option>
+                <option value="expense">Expense</option>
+            </select>
+        </div>
+        <div class="mb-3">
+            <label for="amount" class="form-label">Amount</label>
+            <input type="number" class="form-control" id="amount" name="amount" required>
+        </div>
+        <div class="mb-3">
+            <label for="description" class="form-label">Description</label>
+            <input type="text" class="form-control" id="description" name="description" required>
+        </div>
+        <div class="mb-3">
+            <label for="category" class="form-label">Category</label>
+            <select class="form-select" id="category" name="category" required>
+                <% categories.forEach(category => { %>
+                    <option value="<%= category %>"><%= category %></option>
+                <% }) %>
+                
+            </select>
+        </div>
+        <button type="submit" class="btn btn-primary w-100">Add Transaction</button>
+    </form>
+</div>
+
+

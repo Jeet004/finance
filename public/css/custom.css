@@ -1,0 +1,195 @@
+/* Navbar Styles */
+.navbar {
+    background: linear-gradient(135deg, #001f3f, #004080); /* Dark blue to mid-blue gradient */
+    color: #ffffff;
+}
+
+.navbar-brand {
+    font-family: 'Poppins', sans-serif;
+    font-weight: 600;
+}
+
+.navbar-brand img {
+    width: 50px;
+    height: 50px;
+    border-radius: 50%;
+}
+
+.nav-link {
+    color: #ffffff !important; /* White text for contrast */
+    font-weight: 500;
+    margin-right: 20px;
+    transition: color 0.3s ease;
+    font-family: 'Poppins', sans-serif;
+}
+
+.nav-link:hover {
+    color: #00ffcc !important; /* Cyan for hover effect */
+}
+
+.navbar-toggler {
+    border-color: rgba(255, 255, 255, 0.5);
+}
+
+.navbar-toggler-icon {
+    color: white;
+}
+
+/* Dropdown Menu */
+.dropdown-menu {
+    background-color: #003366; /* Darker blue */
+    border-radius: 10px;
+    box-shadow: 0 0 5px rgba(0, 0, 0, 0.2);
+}
+
+.dropdown-item {
+    color: #ffffff !important;
+    font-family: 'Poppins', sans-serif;
+}
+
+.dropdown-item:hover {
+    background-color: #005bb5; /* Slightly lighter blue for hover */
+}
+
+/* Search Bar */
+.form-control {
+    border-radius: 25px;
+    border: 1px solid #004080;
+    padding: 10px 20px;
+    font-size: 14px;
+    transition: all 0.3s ease;
+}
+
+.form-control:focus {
+    border-color: #00ffcc; /* Cyan for focus */
+    box-shadow: 0px 0px 10px rgba(0, 255, 204, 0.5);
+}
+
+.btn-light {
+    border-radius: 50%;
+    padding: 5px 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background-color: #004080; /* Matching blue */
+    color: #ffffff; /* White text */
+    transition: transform 0.3s ease, background-color 0.3s ease;
+}
+
+.btn-light:hover {
+    transform: scale(1.1);
+    background-color: #00ffcc; /* Cyan for hover */
+    color: #004080; /* Blue text */
+}
+
+/* Login and Sign Up Buttons */
+.btn-outline-light {
+    border-color: #00ffcc;
+    color: #00ffcc;
+    transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+.btn-outline-light:hover {
+    background-color: #00ffcc;
+    color: #004080;
+}
+
+.btn-danger {
+    background-color: #004080;
+    border-color: #004080;
+    color: #ffffff;
+}
+
+.btn-danger:hover {
+    background-color: #00ffcc;
+    border-color: #00ffcc;
+    color: #004080;
+}
+
+/* Footer Styling */
+html, body {
+    height: 100%;
+    margin: 0;
+}
+
+/* Ensure content takes up space for footer to stick at the bottom */
+.container {
+    min-height: 80vh; /* Adjust as needed */
+}
+
+/* Footer Styles */
+footer {
+    background: #222;
+    color: #bbb;
+    position: relative;
+    bottom: 0;
+    width: 100%;
+    padding: 40px 0;
+    text-align: center;
+    margin-top: 20px; /* Add margin to prevent overlap with content */
+}
+
+footer a {
+    color: #bbb;
+    transition: color 0.3s;
+}
+
+footer a:hover {
+    color: #fff;
+    text-decoration: none;
+}
+
+footer h5 {
+    color: #fff;
+    font-size: 16px;
+    margin-bottom: 20px;
+}
+
+footer .footer-links {
+    list-style: none;
+    padding-left: 0;
+}
+
+footer .footer-links li {
+    margin-bottom: 10px;
+}
+
+footer .footer-links a {
+    color: #bbb;
+    transition: color 0.3s ease;
+}
+
+footer .footer-links a:hover {
+    color: #fff;
+}
+
+footer .social-icons {
+    margin-top: 20px;
+}
+
+footer .social-icons a {
+    margin: 0 10px;
+    color: #bbb;
+    font-size: 20px;
+    transition: color 0.3s ease;
+}
+
+footer .social-icons a:hover {
+    color: #fff;
+}
+
+/* Responsive Design */
+@media (max-width: 767px) {
+    footer .row > div {
+        margin-bottom: 20px;
+    }
+
+    footer .col-md-3 {
+        width: 100%;
+        padding: 0;
+    }
+
+    footer .social-icons {
+        margin-top: 20px;
+    }
+}
