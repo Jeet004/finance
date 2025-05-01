@@ -237,22 +237,27 @@ app.get('/signup', (req, res) => {
 });
 
 // Sign Up (POST)
-app.post('/signup', (req, res) => {
+app.post('/signup', async (req, res) => {
     const { name, email, password } = req.body;
-    bcrypt.hash(password, 10, (err, hashedPassword) => {
-        if (err) throw err;
-        const query = 'INSERT INTO users (name, email, password) VALUES (?, ?, ?)';
-        db.query(query, [name, email, hashedPassword], (err, result) => {
-            if (err) {
-                console.error(err);
-                req.flash('error_msg', 'Error during registration');
-                return res.redirect('/signup');
-            }
-            req.flash('success_msg', 'Registration successful! Please login.');
-            res.redirect('/login');
-        });
-    });
+    try {
+        const [existing] = await db.query('SELECT * FROM users WHERE email = ?', [email]);
+        if (existing.length > 0) {
+            req.flash('error_msg', 'Email already registered');
+            return res.redirect('/signup');
+        }
+
+        const hashedPassword = await bcrypt.hash(password, 10);
+        await db.query('INSERT INTO users (name, email, password) VALUES (?, ?, ?)', [name, email, hashedPassword]);
+
+        req.flash('success_msg', 'Registration successful! Please login.');
+        res.redirect('/login');
+    } catch (err) {
+        console.error(err);
+        req.flash('error_msg', 'Error during registration');
+        res.redirect('/signup');
+    }
 });
+
 
 // Logout
 app.get('/logout', (req, res) => {
