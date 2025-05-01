@@ -1,6 +1,8 @@
 const express = require('express');
+const db = require('./db'); // Your MySQL connection
 const bodyParser = require('body-parser');
 const expressLayouts = require('express-ejs-layouts');
+const flash = require('connect-flash');
 const passport = require('passport');
 const LocalStrategy = require('passport-local').Strategy;
 const bcrypt = require('bcryptjs');
@@ -18,24 +20,36 @@ app.use(bodyParser.urlencoded({ extended: true }));
 app.use(express.static('public'));
 app.use(expressLayouts);
 
-// Set default title in the response locals
+// Session setup
+app.use(session({
+    secret: 'finance-manager-secret',
+    resave: false,
+    saveUninitialized: false
+}));
+
+// Flash setup
+app.use(flash());
+
+// Passport setup
+app.use(passport.initialize());
+app.use(passport.session());
+
+// Global variables for flash messages
 app.use((req, res, next) => {
+    res.locals.success_msg = req.flash('success_msg');
+    res.locals.error_msg = req.flash('error_msg');
+    res.locals.error = req.flash('error');
     res.locals.title = 'Finance Manager'; // Default title
     next();
 });
 
-// Dummy data for transactions and users (Replace with a database in production)
-let transactions = [
-    { type: 'income', amount: 1500, description: 'Salary', category: 'Salary' },
-    { type: 'expense', amount: 300, description: 'Groceries', category: 'Food' },
-    { type: 'expense', amount: 100, description: 'Transport', category: 'Transport' },
-];
-let users = [
-    { username: 'user1', password: '$2a$10$M1Y0Ff6A0qbpmIuqEd/8NeO5Zq5Eni87t7P9r0SKyEdnk9jj2RuJe' } // password: 'password123'
-];
-
-// Available categories
-const categories = ['Salary', 'Food', 'Transport', 'Shopping', 'Utilities', 'Health', 'Miscellaneous'];
+// Middleware to protect routes
+function ensureAuthenticated(req, res, next) {
+    if (req.isAuthenticated()) {
+        return next();
+    }
+    res.redirect('/login');
+}
 
 // Set up session and passport
 app.use(session({
@@ -48,74 +62,158 @@ app.use(passport.initialize());
 app.use(passport.session());
 
 // Passport strategy for login
-passport.use(new LocalStrategy((username, password, done) => {
-    const user = users.find(u => u.username === username);
-    if (!user) return done(null, false, { message: 'Incorrect username.' });
-    
-    bcrypt.compare(password, user.password, (err, isMatch) => {
-        if (err) return done(err);
-        if (isMatch) return done(null, user);
-        return done(null, false, { message: 'Incorrect password.' });
-    });
+passport.use(new LocalStrategy({ usernameField: 'email' }, async (email, password, done) => {
+    try {
+        const [rows] = await db.query('SELECT * FROM users WHERE email = ?', [email]);
+        if (rows.length === 0) {
+            return done(null, false, { message: 'Incorrect email.' });
+        }
+        const user = rows[0];
+        const isMatch = await bcrypt.compare(password, user.password);
+        if (isMatch) {
+            return done(null, user);
+        } else {
+            return done(null, false, { message: 'Incorrect password.' });
+        }
+    } catch (err) {
+        return done(err);
+    }
 }));
 
-// Serialize and deserialize user for session
 passport.serializeUser((user, done) => {
-    done(null, user.username);
+    done(null, user.id);
 });
 
-passport.deserializeUser((username, done) => {
-    const user = users.find(u => u.username === username);
-    done(null, user);
+passport.deserializeUser(async (id, done) => {
+    try {
+        const [rows] = await db.query('SELECT * FROM users WHERE id = ?', [id]);
+        if (rows.length === 0) {
+            return done(null, false);
+        }
+        return done(null, rows[0]);
+    } catch (err) {
+        return done(err);
+    }
 });
 
 // Helper function to calculate income, expenses, and balance
-const calculateFinances = () => {
-    const income = transactions.filter(t => t.type === 'income').reduce((sum, t) => sum + t.amount, 0);
-    const expenses = transactions.filter(t => t.type === 'expense').reduce((sum, t) => sum + t.amount, 0);
+
+
+// Home Page (Protected)
+// Home Page (Dashboard) Route
+app.get('/', ensureAuthenticated, async (req, res) => {
+    try {
+        const [transactions] = await db.query('SELECT * FROM transactions WHERE user_id = ?', [req.user.id]);
+        console.log(transactions); 
+
+        // Check if transactions is an empty array or undefined
+        if (!transactions || !Array.isArray(transactions)) {
+            return res.render('index', { title: 'Dashboard', transactions: [], income: 0, expenses: 0, balance: 0 });
+        }
+
+        // Use the helper function to calculate income, expenses, and balance
+        const { income, expenses, balance } = calculateFinances(transactions);
+
+        // Render dashboard with income, expenses, balance, and transactions
+        res.render('index', { title: 'Dashboard', transactions, income, expenses, balance });
+    } catch (err) {
+        console.error(err);
+        res.redirect('/login');
+    }
+});
+// Helper function to calculate income, expenses, and balance
+const calculateFinances = (transactions) => {
+    if (!Array.isArray(transactions)) {
+        return { income: 0, expenses: 0, balance: 0 };  // Default values if transactions is not an array
+    }
+
+    const income = transactions.filter(t => t.type === 'income').reduce((sum, t) => sum + parseFloat(t.amount), 0);
+    const expenses = transactions.filter(t => t.type === 'expense').reduce((sum, t) => sum + parseFloat(t.amount), 0);
     const balance = income - expenses;
     return { income, expenses, balance };
 };
 
-// Routes
 
-// Home Page
-app.get('/', (req, res) => {
-    const { income, expenses, balance } = calculateFinances();
-    res.render('index', { title: 'Home', transactions, income, expenses, balance });
-});
 
-// Add Transaction Page
-app.get('/add', (req, res) => {
+
+// Add Transaction Page (Protected)
+app.get('/add', ensureAuthenticated, (req, res) => {
+    // Define the categories array
+    const categories = ['Food', 'Transport', 'Entertainment', 'Bills'];
+
+    // Render the addTransaction page with categories
     res.render('addTransaction', { title: 'Add Transaction', categories });
 });
 
-// Add Transaction (POST)
-app.post('/add', (req, res) => {
+
+// Add Transaction (POST) (Protected)
+app.post('/add', ensureAuthenticated, async (req, res) => {
     const { type, amount, description, category } = req.body;
-    transactions.push({ type, amount: parseFloat(amount), description, category });
-    res.redirect('/');
+    try {
+        await db.query('INSERT INTO transactions (type, amount, description, category, user_id) VALUES (?, ?, ?, ?, ?)', 
+        [type, amount, description, category, req.user.id]);
+        res.redirect('/');
+    } catch (err) {
+        console.error(err);
+        res.redirect('/add');
+    }
 });
+function getCategoriesSummary(transactions) {
+    const categorySummary = {};
 
-// Summary Page
-app.get('/summary', (req, res) => {
-    const { income, expenses, balance } = calculateFinances();
+    transactions.forEach(t => {
+        const category = t.category;
+        const amount = parseFloat(t.amount);
 
-    const categoriesMap = {};
-    transactions.forEach(transaction => {
-        categoriesMap[transaction.category] = (categoriesMap[transaction.category] || 0) + transaction.amount;
+        if (category) {
+            if (!categorySummary[category]) {
+                categorySummary[category] = 0;
+            }
+            categorySummary[category] += amount;
+        }
     });
 
-    const categoryTotals = Object.keys(categoriesMap).map(key => ({
-        name: key,
-        total: categoriesMap[key],
+    return Object.keys(categorySummary).map(category => ({
+        name: category,
+        total: categorySummary[category]
     }));
+}
 
-    res.render('summary', { title: 'Summary', income, expenses, balance, categories: categoryTotals });
+// Summary Page (Protected)
+// Summary Page Route
+app.get('/summary', ensureAuthenticated, async (req, res) => {
+    try {
+        const [transactions] = await db.query('SELECT * FROM transactions WHERE user_id = ?', [req.user.id]);
+
+        // If transactions are not available or empty, handle gracefully
+        if (!transactions || transactions.length === 0) {
+            return res.render('summary', { title: 'Summary - Personal Finance', transactions: [], income: 0, expenses: 0, balance: 0, categories: [] });
+        }
+
+        // Calculate income, expenses, balance
+        const { income, expenses, balance } = calculateFinances(transactions);
+
+        // Get categories summary
+        const categories = getCategoriesSummary(transactions);
+
+        // Render the summary page with the data
+        res.render('summary', { 
+            title: 'Summary - Personal Finance', 
+            transactions, 
+            income, 
+            expenses, 
+            balance, 
+            categories 
+        });
+
+    } catch (err) {
+        console.error(err);
+        res.redirect('/');
+    }
 });
 
-// About Page
-app.get('/about', (req, res) => {
+// About Page (Protected)
+app.get('/about', ensureAuthenticated, (req, res) => {
     res.render('about', { title: 'About' });
 });
 
@@ -125,11 +223,13 @@ app.get('/login', (req, res) => {
 });
 
 // Login POST Route
-app.post('/login', passport.authenticate('local', {
-    successRedirect: '/',
-    failureRedirect: '/login',
-    failureFlash: true,
-}));
+app.post('/login', (req, res, next) => {
+    passport.authenticate('local', {
+        successRedirect: '/',
+        failureRedirect: '/login',
+        failureFlash: true // Enable flash messages on failure
+    })(req, res, next);
+});
 
 // Sign Up Page
 app.get('/signup', (req, res) => {
@@ -138,11 +238,19 @@ app.get('/signup', (req, res) => {
 
 // Sign Up (POST)
 app.post('/signup', (req, res) => {
-    const { username, password } = req.body;
+    const { name, email, password } = req.body;
     bcrypt.hash(password, 10, (err, hashedPassword) => {
         if (err) throw err;
-        users.push({ username, password: hashedPassword });
-        res.redirect('/login');
+        const query = 'INSERT INTO users (name, email, password) VALUES (?, ?, ?)';
+        db.query(query, [name, email, hashedPassword], (err, result) => {
+            if (err) {
+                console.error(err);
+                req.flash('error_msg', 'Error during registration');
+                return res.redirect('/signup');
+            }
+            req.flash('success_msg', 'Registration successful! Please login.');
+            res.redirect('/login');
+        });
     });
 });
 

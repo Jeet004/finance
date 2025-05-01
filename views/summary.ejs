@@ -34,9 +34,13 @@
     <div class="mt-4">
         <h4>Categories</h4>
         <ul>
-            <% categories.forEach(category => { %>
-                <li><%= category.name %>: $<%= category.total.toFixed(2) %></li>
-            <% }) %>
+            <% if (categories && categories.length > 0) { %>
+                <% categories.forEach(category => { %>
+                    <li><%= category.name %>: $<%= category.total.toFixed(2) %></li>
+                <% }) %>
+            <% } else { %>
+                <li>No categories available</li>
+            <% } %>
         </ul>
     </div>
 </div>
