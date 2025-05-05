@@ -261,6 +261,7 @@ app.post('/signup', async (req, res) => {
     }
 });
 
+
 // Logout
 app.get('/logout', (req, res) => {
     req.logout((err) => {
