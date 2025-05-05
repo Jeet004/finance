@@ -12,7 +12,9 @@ const app = express();
 
 // View setup
 app.set('views', path.join(__dirname, 'views'));
+// EJS setup
 app.set('view engine', 'ejs');
+app.use(expressLayouts);
 app.set('layout', 'layouts/layout');
 
 // Middleware setup
@@ -40,6 +42,7 @@ app.use((req, res, next) => {
     res.locals.error_msg = req.flash('error_msg');
     res.locals.error = req.flash('error');
     res.locals.title = 'Finance Manager'; // Default title
+    res.locals.user = req.user || null; // Add this line to make user available to all views
     next();
 });
 
@@ -237,21 +240,25 @@ app.get('/signup', (req, res) => {
 });
 
 // Sign Up (POST)
-app.post('/signup', (req, res) => {
+app.post('/signup', async (req, res) => {
     const { name, email, password } = req.body;
-    bcrypt.hash(password, 10, (err, hashedPassword) => {
-        if (err) throw err;
-        const query = 'INSERT INTO users (name, email, password) VALUES (?, ?, ?)';
-        db.query(query, [name, email, hashedPassword], (err, result) => {
-            if (err) {
-                console.error(err);
-                req.flash('error_msg', 'Error during registration');
-                return res.redirect('/signup');
-            }
-            req.flash('success_msg', 'Registration successful! Please login.');
-            res.redirect('/login');
-        });
-    });
+    try {
+        const [existing] = await db.query('SELECT * FROM users WHERE email = ?', [email]);
+        if (existing.length > 0) {
+            req.flash('error_msg', 'Email already registered');
+            return res.redirect('/signup');
+        }
+
+        const hashedPassword = await bcrypt.hash(password, 10);
+        await db.query('INSERT INTO users (name, email, password) VALUES (?, ?, ?)', [name, email, hashedPassword]);
+
+        req.flash('success_msg', 'Registration successful! Please login.');
+        res.redirect('/login');
+    } catch (err) {
+        console.error(err);
+        req.flash('error_msg', 'Error during registration');
+        res.redirect('/signup');
+    }
 });
 
 // Logout
@@ -261,7 +268,93 @@ app.get('/logout', (req, res) => {
     });
 });
 
+// Budget Planning Page (Protected)
+app.get('/budget', ensureAuthenticated, async (req, res) => {
+    try {
+        // Instead of hardcoding categories, get them from transactions
+        const [allCategories] = await db.query(
+            'SELECT DISTINCT category FROM transactions WHERE user_id = ? AND type = "expense"',
+            [req.user.id]
+        );
+        const categories = allCategories.map(cat => cat.category);
+        
+        // Get budget data from database
+        const [budgetData] = await db.query('SELECT category, amount FROM budgets WHERE user_id = ?', [req.user.id]);
+        
+        // Get expense data from database
+        const [expenseData] = await db.query(
+            'SELECT category, SUM(amount) as total FROM transactions WHERE user_id = ? AND type = "expense" GROUP BY category',
+            [req.user.id]
+        );
+
+        res.render('budget', { 
+            title: 'Budget Planning',
+            categories,
+            budgetData,
+            expenseData
+        });
+    } catch (err) {
+        console.error(err);
+        res.redirect('/');
+    }
+});
+
+// Set Budget (Protected)
+app.post('/budget/set', ensureAuthenticated, async (req, res) => {
+    const { category, amount } = req.body;
+    try {
+        // Use REPLACE INTO to handle both insert and update
+        await db.query(
+            'REPLACE INTO budgets (user_id, category, amount) VALUES (?, ?, ?)',
+            [req.user.id, category, amount]
+        );
+        req.flash('success_msg', 'Budget updated successfully');
+        res.redirect('/budget');
+    } catch (err) {
+        console.error(err);
+        req.flash('error_msg', 'Error updating budget');
+        res.redirect('/budget');
+    }
+});
+
+// API endpoint for getting budget data
+app.get('/api/budget-data', ensureAuthenticated, async (req, res) => {
+    try {
+        // Get budget data from database
+        const [budgets] = await db.query('SELECT category, amount FROM budgets WHERE user_id = ?', [req.user.id]);
+        
+        // Get expense data from database
+        const [expenses] = await db.query(
+            'SELECT category, SUM(amount) as total FROM transactions WHERE user_id = ? AND type = "expense" GROUP BY category',
+            [req.user.id]
+        );
+
+        // Transform the data into the required format
+        const expenseData = {
+            labels: expenses.map(expense => expense.category),
+            data: expenses.map(expense => parseFloat(expense.total))
+        };
+
+        const budgetData = {
+            labels: budgets.map(budget => budget.category),
+            budget: budgets.map(budget => parseFloat(budget.amount)),
+            actual: budgets.map(budget => {
+                const expense = expenses.find(e => e.category === budget.category);
+                return expense ? parseFloat(expense.total) : 0;
+            })
+        };
+
+        res.json({
+            expenseData,
+            budgetData
+        });
+    } catch (error) {
+        console.error('Error fetching budget data:', error);
+        res.status(500).json({ error: 'Failed to fetch budget data' });
+    }
+});
+
 // Start Server
-app.listen(3000, () => {
-    console.log('Server running on http://localhost:3000');
+app.listen(3001, () => {
+    console.log('Server running on http://localhost:3001');
 });
